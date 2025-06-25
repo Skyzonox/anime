@@ -1,4 +1,4 @@
-// app/(tabs)/search.tsx - Version corrigée complète
+// app/(tabs)/search.tsx - Version sans bouton "À voir"
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -8,25 +8,21 @@ import tw from 'twrnc';
 import ErrorComponent from '../../components/ErrorComponent';
 import LoadingComponent from '../../components/LoadingComponent';
 import { useRechercheAnime } from '../../hooks/useAnimeApi';
-import { useCollectionAnimes, useListeARegarder } from '../../hooks/useDatabase';
+import { useCollectionAnimes } from '../../hooks/useDatabase';
 import { KitsuAnime, getBestTitle, getImageUrl } from '../../services/apiService';
 
-// Composant AnimeCard inline pour éviter les conflits d'import
+// Composant AnimeCard sans bouton "À voir"
 function AnimeSearchCard({ 
   anime, 
   onPress, 
-  onAddToCollection,
-  onAddToWatchlist
+  onAddToCollection
 }: {
   anime: KitsuAnime;
   onPress: () => void;
   onAddToCollection: () => void;
-  onAddToWatchlist: () => void;
 }) {
-  const [imageError, setImageError] = useState(false);
-  
   const titre = getBestTitle(anime.attributes.titles, anime.attributes.canonicalTitle);
-  const imageUrl = getImageUrl(anime.attributes.posterImage, 'medium');
+  const imageUrl = getImageUrl(anime.attributes.posterImage, 'medium', titre);
   const synopsis = anime.attributes.synopsis ? 
     (anime.attributes.synopsis.length > 100 ? 
       anime.attributes.synopsis.substring(0, 100) + '...' : 
@@ -46,21 +42,11 @@ function AnimeSearchCard({
     >
       <View style={tw`flex-row`}>
         <View style={tw`w-24 h-36`}>
-          {!imageError ? (
-            <Image
-              source={{ uri: imageUrl }}
-              style={tw`w-full h-full rounded-l-lg`}
-              resizeMode="cover"
-              onError={() => setImageError(true)}
-            />
-          ) : (
-            <View style={tw`w-full h-full bg-gray-300 rounded-l-lg justify-center items-center`}>
-              <Ionicons name="image-outline" size={32} color="#6B7280" />
-              <Text style={tw`text-gray-500 text-xs mt-1 text-center px-1`} numberOfLines={2}>
-                {titre.substring(0, 10)}...
-              </Text>
-            </View>
-          )}
+          <Image
+            source={{ uri: imageUrl }}
+            style={tw`w-full h-full rounded-l-lg`}
+            resizeMode="cover"
+          />
         </View>
 
         <View style={tw`flex-1 p-3`}>
@@ -91,27 +77,17 @@ function AnimeSearchCard({
             </Text>
           )}
 
+          {/* Seul le bouton "Ajouter à ma collection" reste */}
           <View style={tw`flex-row justify-end`}>
             <TouchableOpacity
-              style={tw`bg-green-500 px-3 py-2 rounded mr-2 flex-row items-center`}
+              style={tw`bg-blue-500 px-4 py-2 rounded flex-row items-center`}
               onPress={(e) => {
                 e.stopPropagation();
                 onAddToCollection();
               }}
             >
               <Ionicons name="add" size={16} color="white" />
-              <Text style={tw`text-white text-xs ml-1`}>Collection</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={tw`bg-orange-500 px-3 py-2 rounded flex-row items-center`}
-              onPress={(e) => {
-                e.stopPropagation();
-                onAddToWatchlist();
-              }}
-            >
-              <Ionicons name="bookmark" size={16} color="white" />
-              <Text style={tw`text-white text-xs ml-1`}>À voir</Text>
+              <Text style={tw`text-white text-sm ml-1`}>Ajouter à ma collection</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -124,10 +100,9 @@ export default function SearchScreen() {
   const [requete, setRequete] = useState('');
   const [rechercheEffectuee, setRechercheEffectuee] = useState(false);
   
-  // Hooks pour la recherche
+  // Hooks pour la recherche (suppression du hook useListeARegarder)
   const { animes, estEnChargement, erreur, rechercherAnimes, viderRecherche } = useRechercheAnime();
   const { addAnimeToCollection } = useCollectionAnimes();
-  const { ajouterALaListe } = useListeARegarder();
 
   // Fonction pour effectuer la recherche
   const handleRecherche = async () => {
@@ -150,11 +125,12 @@ export default function SearchScreen() {
   // Fonction pour ajouter un anime à la collection
   const handleAjouterACollection = async (anime: KitsuAnime) => {
     try {
+      const titre = getBestTitle(anime.attributes.titles, anime.attributes.canonicalTitle);
       const succes = await addAnimeToCollection({
         kitsuId: anime.id,
-        title: getBestTitle(anime.attributes.titles, anime.attributes.canonicalTitle),
+        title: titre,
         episodeCount: anime.attributes.episodeCount || 0,
-        posterImage: getImageUrl(anime.attributes.posterImage, 'medium'),
+        posterImage: getImageUrl(anime.attributes.posterImage, 'medium', titre),
         synopsis: anime.attributes.synopsis || '',
         averageRating: anime.attributes.averageRating || 0,
         startDate: anime.attributes.startDate || ''
@@ -163,27 +139,10 @@ export default function SearchScreen() {
       if (succes) {
         Alert.alert(
           'Succès !', 
-          `${getBestTitle(anime.attributes.titles, anime.attributes.canonicalTitle)} a été ajouté à votre collection.`
+          `${titre} a été ajouté à votre collection.`
         );
       } else {
-        Alert.alert('Erreur', 'Impossible d\'ajouter cet anime à votre collection.');
-      }
-    } catch (error) {
-      Alert.alert('Erreur', 'Une erreur est survenue lors de l\'ajout.');
-    }
-  };
-
-  // Fonction pour ajouter un anime à la liste à regarder
-  const handleAjouterAListeARegarder = async (anime: KitsuAnime) => {
-    try {
-      const succes = await ajouterALaListe(anime);
-      if (succes) {
-        Alert.alert(
-          'Succès !', 
-          `${getBestTitle(anime.attributes.titles, anime.attributes.canonicalTitle)} a été ajouté à votre liste à regarder.`
-        );
-      } else {
-        Alert.alert('Erreur', 'Impossible d\'ajouter cet anime à votre liste.');
+        Alert.alert('Information', 'Cet anime est déjà dans votre collection ou une erreur est survenue.');
       }
     } catch (error) {
       Alert.alert('Erreur', 'Une erreur est survenue lors de l\'ajout.');
@@ -312,7 +271,6 @@ export default function SearchScreen() {
                 anime={anime}
                 onPress={() => handleVoirDetails(anime.id)}
                 onAddToCollection={() => handleAjouterACollection(anime)}
-                onAddToWatchlist={() => handleAjouterAListeARegarder(anime)}
               />
             ))}
           </View>

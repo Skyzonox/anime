@@ -1,4 +1,4 @@
-// components/ProgressBar.tsx - Version corrigée sans transition-all
+// components/ProgressBar.tsx - Version corrigée sans erreur Text
 import { Ionicons } from '@expo/vector-icons';
 import { Text, View } from 'react-native';
 import tw from 'twrnc';

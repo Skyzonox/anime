@@ -1,4 +1,4 @@
-// app/(tabs)/collection.tsx
+// app/(tabs)/collection.tsx - Correction de l'affichage des images
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -9,12 +9,11 @@ import ErrorComponent from '../../components/ErrorComponent';
 import LoadingComponent from '../../components/LoadingComponent';
 import ProgressBar from '../../components/ProgressBar';
 import { useCollectionAnimes, useProgressionAnime } from '../../hooks/useDatabase';
-import { formaterDate, formaterNote, tronquerTexte } from '../../utils/formatters';
+import { getImageUrl } from '../../services/apiService';
 
 export default function CollectionScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   
-  // Hook pour récupérer la collection
   const { 
     collection, 
     estEnChargement, 
@@ -23,19 +22,16 @@ export default function CollectionScreen() {
     supprimerAnime 
   } = useCollectionAnimes();
 
-  // Fonction pour rafraîchir les données
   const rafraichir = async () => {
     setIsRefreshing(true);
     await recharger();
     setIsRefreshing(false);
   };
 
-  // Fonction pour naviguer vers les détails d'un anime de la collection
   const handleVoirDetails = (animeId: string) => {
     router.push(`/collection/${animeId}`);
   };
 
-  // Fonction pour supprimer un anime de la collection
   const handleSupprimerAnime = (animeId: string, titre: string) => {
     Alert.alert(
       'Supprimer de la collection',
@@ -61,12 +57,10 @@ export default function CollectionScreen() {
     );
   };
 
-  // Affichage en cas de chargement initial
   if (estEnChargement && collection.length === 0) {
     return <LoadingComponent message="Chargement de votre collection..." fullScreen />;
   }
 
-  // Affichage en cas d'erreur
   if (erreur && collection.length === 0) {
     return (
       <ErrorComponent 
@@ -77,7 +71,6 @@ export default function CollectionScreen() {
     );
   }
 
-  // Affichage si la collection est vide
   if (collection.length === 0) {
     return (
       <View style={tw`flex-1 justify-center items-center bg-gray-50 px-6`}>
@@ -117,7 +110,6 @@ export default function CollectionScreen() {
           />
         }
       >
-        {/* Statistiques de la collection */}
         <View style={tw`bg-white m-4 p-4 rounded-lg shadow-sm`}>
           <Text style={tw`text-lg font-bold text-gray-800 mb-2`}>
             Ma Collection
@@ -127,7 +119,6 @@ export default function CollectionScreen() {
           </Text>
         </View>
 
-        {/* Liste des animes de la collection */}
         <View style={tw`px-4`}>
           {collection.map((anime) => (
             <AnimeCollectionCard
@@ -143,7 +134,6 @@ export default function CollectionScreen() {
   );
 }
 
-// Composant pour une carte d'anime dans la collection
 function AnimeCollectionCard({ anime, onPress, onDelete }: {
   anime: any;
   onPress: () => void;
@@ -154,6 +144,35 @@ function AnimeCollectionCard({ anime, onPress, onDelete }: {
     anime.nombreEpisodesTotal
   );
 
+  const formaterDate = (dateString: string): string => {
+    if (!dateString) return 'Date inconnue';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('fr-FR', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    } catch {
+      return 'Date invalide';
+    }
+  };
+
+  const formaterNote = (note: number): string => {
+    if (!note && note !== 0) return 'Pas de note';
+    const noteSur10 = Math.round((note / 100) * 10 * 10) / 10;
+    return `${noteSur10}/10`;
+  };
+
+  const tronquerTexte = (texte: string, longueur: number): string => {
+    if (!texte) return '';
+    if (texte.length <= longueur) return texte;
+    return texte.substring(0, longueur) + '...';
+  };
+
+  // CORRECTION : Utiliser l'image stockée ou générer une par défaut
+  const imageUrl = anime.imageUrl || getImageUrl(undefined, 'medium', anime.titre || 'Anime');
+
   return (
     <TouchableOpacity 
       style={tw`bg-white rounded-lg shadow-sm mb-4 overflow-hidden`}
@@ -161,29 +180,19 @@ function AnimeCollectionCard({ anime, onPress, onDelete }: {
       activeOpacity={0.7}
     >
       <View style={tw`flex-row`}>
-        {/* Image de l'anime */}
         <View style={tw`w-20 h-28`}>
-          {anime.imageUrl ? (
-            <Image
-              source={{ uri: anime.imageUrl }}
-              style={tw`w-full h-full`}
-              resizeMode="cover"
-            />
-          ) : (
-            <View style={tw`w-full h-full bg-gray-300 justify-center items-center`}>
-              <Ionicons name="image-outline" size={24} color="#6B7280" />
-            </View>
-          )}
+          <Image
+            source={{ uri: imageUrl }}
+            style={tw`w-full h-full`}
+            resizeMode="cover"
+          />
         </View>
 
-        {/* Informations de l'anime */}
         <View style={tw`flex-1 p-3`}>
-          {/* Titre */}
           <Text style={tw`text-lg font-bold text-gray-800 mb-1`} numberOfLines={2}>
-            {anime.titre}
+            {anime.titre || 'Titre inconnu'}
           </Text>
 
-          {/* Note et date d'ajout */}
           <View style={tw`flex-row items-center mb-2`}>
             {anime.noteApi && (
               <View style={tw`flex-row items-center mr-3`}>
@@ -198,14 +207,12 @@ function AnimeCollectionCard({ anime, onPress, onDelete }: {
             </Text>
           </View>
 
-          {/* Synopsis tronqué */}
           {anime.synopsis && (
             <Text style={tw`text-gray-600 text-sm mb-3`} numberOfLines={2}>
               {tronquerTexte(anime.synopsis, 80)}
             </Text>
           )}
 
-          {/* Barre de progression */}
           <ProgressBar
             episodesVus={nombreEpisodesVus}
             episodesTotal={anime.nombreEpisodesTotal || 0}
@@ -214,7 +221,6 @@ function AnimeCollectionCard({ anime, onPress, onDelete }: {
           />
         </View>
 
-        {/* Bouton de suppression */}
         <View style={tw`justify-start items-end p-2`}>
           <TouchableOpacity
             style={tw`p-2`}

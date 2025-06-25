@@ -1,10 +1,9 @@
-// app/collection/[id].tsx
+// app/collection/[id].tsx - Version corrigée pour les erreurs Text
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Alert, Image, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
 
-import EpisodeCard from '../../components/EpisodeCard';
 import ErrorComponent from '../../components/ErrorComponent';
 import LoadingComponent from '../../components/LoadingComponent';
 import ProgressBar from '../../components/ProgressBar';
@@ -14,13 +13,21 @@ import {
   useEpisodesVus,
   useProgressionAnime
 } from '../../hooks/useDatabase';
+import { getBestTitle, getImageUrl } from '../../services/apiService';
 
 export default function CollectionAnimeDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   
-  // Hooks pour récupérer les données
   const { collection, supprimerAnime } = useCollectionAnimes();
-  const { episodes, estEnChargement: episodesEnChargement } = useEpisodesAnime(id!);
+  const { 
+    episodes, 
+    estEnChargement: episodesEnChargement,
+    estEnChargementPlus,
+    hasMore,
+    chargerEpisodesSuivants,
+    total,
+    erreur: erreurEpisodes
+  } = useEpisodesAnime(id!);
   const { marquerCommeVu, verifierSiVu, episodesVus } = useEpisodesVus(id!);
   const { 
     nombreEpisodesVus, 
@@ -29,7 +36,6 @@ export default function CollectionAnimeDetailsScreen() {
     estTermine 
   } = useProgressionAnime(id!, collection.find(a => a.id === id)?.nombreEpisodesTotal);
 
-  // Trouver l'anime dans la collection
   const anime = collection.find(a => a.id === id);
 
   if (!anime) {
@@ -41,19 +47,17 @@ export default function CollectionAnimeDetailsScreen() {
     );
   }
 
-  // Fonction pour marquer un épisode comme vu
   const handleMarquerEpisodeVu = async (numeroEpisode: number, titreEpisode?: string) => {
     try {
       const succes = await marquerCommeVu(numeroEpisode, titreEpisode);
       if (succes) {
-        Alert.alert('Succès', `Épisode ${numeroEpisode} marqué comme vu.`);
+        Alert.alert('Succès', `Episode ${numeroEpisode} marqué comme vu.`);
       }
     } catch (error) {
       Alert.alert('Erreur', 'Une erreur est survenue.');
     }
   };
 
-  // Fonction pour supprimer l'anime de la collection
   const handleSupprimerDeCollection = () => {
     Alert.alert(
       'Supprimer de la collection',
@@ -84,7 +88,6 @@ export default function CollectionAnimeDetailsScreen() {
     router.push(`/anime/${id}/${episodeId}`);
   };
 
-  // Fonction pour formater les dates
   const formaterDate = (dateString: string): string => {
     if (!dateString) return 'Date inconnue';
     try {
@@ -99,7 +102,6 @@ export default function CollectionAnimeDetailsScreen() {
     }
   };
 
-  // Fonction pour formater la note
   const formaterNote = (note: number): string => {
     if (!note && note !== 0) return 'Pas de note';
     const noteSur10 = Math.round((note / 100) * 10 * 10) / 10;
@@ -111,25 +113,17 @@ export default function CollectionAnimeDetailsScreen() {
       {/* En-tête avec informations de l'anime */}
       <View style={tw`bg-gray-100 p-4`}>
         <View style={tw`flex-row`}>
-          {/* Image */}
           <View style={tw`w-32 h-48 mr-4`}>
-            {anime.imageUrl ? (
-              <Image
-                source={{ uri: anime.imageUrl }}
-                style={tw`w-full h-full rounded-lg`}
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={tw`w-full h-full bg-gray-300 rounded-lg justify-center items-center`}>
-                <Ionicons name="image-outline" size={32} color="#6B7280" />
-              </View>
-            )}
+            <Image
+              source={{ uri: getImageUrl(undefined, 'large', anime.titre || 'Anime') }}
+              style={tw`w-full h-full rounded-lg`}
+              resizeMode="cover"
+            />
           </View>
 
-          {/* Informations */}
           <View style={tw`flex-1`}>
             <Text style={tw`text-xl font-bold text-gray-800 mb-2`}>
-              {anime.titre}
+              {anime.titre || 'Titre inconnu'}
             </Text>
 
             {anime.titreOriginal && anime.titreOriginal !== anime.titre && (
@@ -138,7 +132,6 @@ export default function CollectionAnimeDetailsScreen() {
               </Text>
             )}
 
-            {/* Note et statut */}
             <View style={tw`flex-row items-center mb-2`}>
               {anime.noteApi && (
                 <View style={tw`flex-row items-center mr-4`}>
@@ -157,21 +150,18 @@ export default function CollectionAnimeDetailsScreen() {
               )}
             </View>
 
-            {/* Nombre d'épisodes */}
             {anime.nombreEpisodesTotal && (
               <Text style={tw`text-gray-600 mb-2`}>
                 {anime.nombreEpisodesTotal} épisode{anime.nombreEpisodesTotal > 1 ? 's' : ''}
               </Text>
             )}
 
-            {/* Date d'ajout */}
             <Text style={tw`text-gray-500 text-sm`}>
               Ajouté le {formaterDate(anime.dateAjout)}
             </Text>
           </View>
         </View>
 
-        {/* Bouton supprimer */}
         <TouchableOpacity
           style={tw`bg-red-500 py-2 px-4 rounded-lg flex-row items-center justify-center mt-4`}
           onPress={handleSupprimerDeCollection}
@@ -209,10 +199,9 @@ export default function CollectionAnimeDetailsScreen() {
           color="green"
         />
 
-        {/* Statistiques détaillées */}
         <View style={tw`bg-gray-50 rounded-lg p-4 mt-4`}>
           <View style={tw`flex-row justify-between items-center mb-2`}>
-            <Text style={tw`text-gray-600 font-medium`}>Épisodes vus</Text>
+            <Text style={tw`text-gray-600 font-medium`}>Episodes vus</Text>
             <Text style={tw`text-gray-800 font-bold`}>
               {nombreEpisodesVus} / {nombreEpisodesTotal || '?'}
             </Text>
@@ -236,7 +225,6 @@ export default function CollectionAnimeDetailsScreen() {
           </View>
         </View>
 
-        {/* Derniers épisodes vus */}
         {episodesVus.length > 0 && (
           <View style={tw`mt-4`}>
             <Text style={tw`text-gray-700 font-medium mb-2`}>
@@ -249,7 +237,7 @@ export default function CollectionAnimeDetailsScreen() {
                 .map((episode, index) => (
                   <View key={episode.id} style={tw`bg-green-100 px-2 py-1 rounded mr-2 mb-1`}>
                     <Text style={tw`text-green-800 text-sm font-medium`}>
-                      Ép. {episode.numeroEpisode}
+                      Ep. {episode.numeroEpisode}
                     </Text>
                   </View>
                 ))}
@@ -260,9 +248,30 @@ export default function CollectionAnimeDetailsScreen() {
 
       {/* Liste des épisodes */}
       <View style={tw`p-4`}>
-        <Text style={tw`text-lg font-bold text-gray-800 mb-3`}>
-          Épisodes
-        </Text>
+        <View style={tw`flex-row justify-between items-center mb-3`}>
+          <Text style={tw`text-lg font-bold text-gray-800`}>
+            Episodes
+          </Text>
+          {total > 0 && (
+            <Text style={tw`text-gray-600`}>
+              {episodes.length} / {total}
+            </Text>
+          )}
+        </View>
+
+        {erreurEpisodes && (
+          <View style={tw`bg-orange-100 border border-orange-300 rounded-lg p-4 mb-4`}>
+            <View style={tw`flex-row items-center`}>
+              <Ionicons name="warning" size={20} color="#EA580C" />
+              <Text style={tw`text-orange-800 font-medium ml-2`}>
+                Episodes non disponibles
+              </Text>
+            </View>
+            <Text style={tw`text-orange-700 text-sm mt-1`}>
+              Les épisodes ne peuvent pas être chargés depuis l'API. Vous pouvez continuer à marquer vos épisodes comme vus manuellement.
+            </Text>
+          </View>
+        )}
 
         {episodesEnChargement ? (
           <LoadingComponent message="Chargement des épisodes..." />
@@ -279,9 +288,27 @@ export default function CollectionAnimeDetailsScreen() {
                 )}
                 isWatched={verifierSiVu(episode.attributes.number)}
                 animeTitle={anime.titre}
-                totalEpisodes={anime.nombreEpisodesTotal}
               />
             ))}
+
+            {hasMore && (
+              <TouchableOpacity
+                style={tw`bg-blue-500 py-3 px-4 rounded-lg mt-4 flex-row items-center justify-center`}
+                onPress={chargerEpisodesSuivants}
+                disabled={estEnChargementPlus}
+              >
+                {estEnChargementPlus ? (
+                  <LoadingComponent message="" size="small" />
+                ) : (
+                  <>
+                    <Ionicons name="add" size={20} color="white" />
+                    <Text style={tw`text-white font-medium ml-2`}>
+                      Charger 10 épisodes suivants
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
           </View>
         ) : (
           <View style={tw`items-center py-8`}>
@@ -293,5 +320,114 @@ export default function CollectionAnimeDetailsScreen() {
         )}
       </View>
     </ScrollView>
+  );
+}
+
+function EpisodeCard({ 
+  episode, 
+  onPress, 
+  onMarkAsWatched,
+  isWatched = false,
+  animeTitle
+}: {
+  episode: any;
+  onPress: () => void;
+  onMarkAsWatched?: () => void;
+  isWatched?: boolean;
+  animeTitle?: string;
+}) {
+  const titre = getBestTitle(episode.attributes.titles, episode.attributes.canonicalTitle);
+  const synopsis = episode.attributes.synopsis ? 
+    (episode.attributes.synopsis.length > 80 ? 
+      episode.attributes.synopsis.substring(0, 80) + '...' : 
+      episode.attributes.synopsis) : '';
+  const dateAir = episode.attributes.airdate ? 
+    new Date(episode.attributes.airdate).toLocaleDateString('fr-FR') : '';
+  const duree = episode.attributes.length ? 
+    (episode.attributes.length < 60 ? 
+      `${episode.attributes.length} min` : 
+      `${Math.floor(episode.attributes.length / 60)}h${(episode.attributes.length % 60).toString().padStart(2, '0')}`) : '';
+
+  return (
+    <TouchableOpacity 
+      style={tw`bg-white rounded-lg shadow-sm mb-3 mx-2 border ${isWatched ? 'border-green-200 bg-green-50' : 'border-gray-200'}`}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <View style={tw`flex-row`}>
+        <View style={tw`w-20 h-28 bg-gray-200 rounded-l-lg justify-center items-center relative`}>
+          <Image
+            source={{ uri: getImageUrl(episode.attributes.thumbnail, 'small', titre) }}
+            style={tw`w-full h-full rounded-l-lg`}
+            resizeMode="cover"
+          />
+          
+          {isWatched && (
+            <View style={tw`absolute top-1 right-1 bg-green-500 rounded-full p-1`}>
+              <Ionicons name="checkmark" size={12} color="white" />
+            </View>
+          )}
+        </View>
+
+        <View style={tw`flex-1 p-3`}>
+          <View style={tw`flex-row items-center mb-1`}>
+            <Text style={tw`text-blue-600 font-bold text-sm mr-2`}>
+              Ep. {episode.attributes.number}
+            </Text>
+            <Text style={tw`text-gray-800 font-medium flex-1`} numberOfLines={1}>
+              {titre}
+            </Text>
+          </View>
+
+          {synopsis && (
+            <Text style={tw`text-gray-600 text-sm mb-2`} numberOfLines={2}>
+              {synopsis}
+            </Text>
+          )}
+
+          <View style={tw`flex-row items-center justify-between`}>
+            <View style={tw`flex-row items-center`}>
+              {dateAir && (
+                <View style={tw`flex-row items-center mr-3`}>
+                  <Ionicons name="calendar-outline" size={12} color="#6B7280" />
+                  <Text style={tw`text-gray-500 text-xs ml-1`}>
+                    {dateAir}
+                  </Text>
+                </View>
+              )}
+
+              {duree && (
+                <View style={tw`flex-row items-center`}>
+                  <Ionicons name="time-outline" size={12} color="#6B7280" />
+                  <Text style={tw`text-gray-500 text-xs ml-1`}>
+                    {duree}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {onMarkAsWatched && !isWatched && (
+              <TouchableOpacity
+                style={tw`bg-blue-500 px-2 py-1 rounded flex-row items-center`}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  onMarkAsWatched();
+                }}
+              >
+                <Ionicons name="eye" size={12} color="white" />
+                <Text style={tw`text-white text-xs ml-1`}>Vu</Text>
+              </TouchableOpacity>
+            )}
+
+            {isWatched && (
+              <View style={tw`bg-green-100 px-2 py-1 rounded flex-row items-center`}>
+                <Ionicons name="checkmark" size={12} color="#10B981" />
+                <Text style={tw`text-green-800 text-xs ml-1`}>Vu</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </View>
+    </TouchableOpacity>
   );
 }

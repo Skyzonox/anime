@@ -1,4 +1,4 @@
-// hooks/useAnimeApi.ts
+// hooks/useAnimeApi.ts - Version corrigée pour les épisodes
 import { useEffect, useState } from 'react';
 import {
   KitsuAnime,
@@ -11,7 +11,6 @@ import {
   searchAnime
 } from '../services/apiService';
 
-// Hook pour récupérer les animes en cours de diffusion
 export function useAnimesEnCours() {
   const [animes, setAnimes] = useState<KitsuAnime[]>([]);
   const [estEnChargement, setEstEnChargement] = useState(true);
@@ -38,7 +37,6 @@ export function useAnimesEnCours() {
   return { animes, estEnChargement, erreur, recharger: chargerAnimes };
 }
 
-// Hook pour récupérer les animes à venir
 export function useAnimesAVenir() {
   const [animes, setAnimes] = useState<KitsuAnime[]>([]);
   const [estEnChargement, setEstEnChargement] = useState(true);
@@ -65,7 +63,6 @@ export function useAnimesAVenir() {
   return { animes, estEnChargement, erreur, recharger: chargerAnimes };
 }
 
-// Hook pour la recherche d'animes
 export function useRechercheAnime() {
   const [animes, setAnimes] = useState<KitsuAnime[]>([]);
   const [estEnChargement, setEstEnChargement] = useState(false);
@@ -104,7 +101,6 @@ export function useRechercheAnime() {
   };
 }
 
-// Hook pour récupérer les détails d'un anime
 export function useDetailsAnime(animeId: string) {
   const [anime, setAnime] = useState<KitsuAnime | null>(null);
   const [estEnChargement, setEstEnChargement] = useState(true);
@@ -133,36 +129,112 @@ export function useDetailsAnime(animeId: string) {
   return { anime, estEnChargement, erreur, recharger: chargerAnime };
 }
 
-// Hook pour récupérer les épisodes d'un anime
+// Hook modifié pour mieux gérer les erreurs d'épisodes
 export function useEpisodesAnime(animeId: string) {
   const [episodes, setEpisodes] = useState<KitsuEpisode[]>([]);
   const [estEnChargement, setEstEnChargement] = useState(true);
+  const [estEnChargementPlus, setEstEnChargementPlus] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
+  const [pageActuelle, setPageActuelle] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState(0);
 
-  const chargerEpisodes = async () => {
+  const chargerEpisodes = async (page: number = 1, append: boolean = false) => {
     if (!animeId) return;
 
+    // Vérifier si l'animeId ressemble à un ID Kitsu valide
+    if (animeId.startsWith('anime_') || animeId.includes('_')) {
+      console.log('ID non valide pour l\'API Kitsu:', animeId);
+      setErreur('Episodes non disponibles pour cet anime');
+      setEstEnChargement(false);
+      setEstEnChargementPlus(false);
+      return;
+    }
+
     try {
-      setEstEnChargement(true);
+      if (page === 1) {
+        setEstEnChargement(true);
+        setEpisodes([]);
+      } else {
+        setEstEnChargementPlus(true);
+      }
       setErreur(null);
-      const resultats = await fetchEpisodesByAnimeId(animeId);
-      setEpisodes(resultats);
+      
+      const { episodes: nouveauxEpisodes, hasMore: hasMoreResults, total: totalEpisodes } = 
+        await fetchEpisodesByAnimeId(animeId, page, 10);
+      
+      if (append && page > 1) {
+        setEpisodes(prev => [...prev, ...nouveauxEpisodes]);
+      } else {
+        setEpisodes(nouveauxEpisodes);
+      }
+      
+      setHasMore(hasMoreResults);
+      setTotal(totalEpisodes);
+      setPageActuelle(page);
     } catch (error) {
-      setErreur('Impossible de charger les épisodes');
-      console.error(error);
+      console.error('Erreur lors du chargement des épisodes:', error);
+      setErreur('Episodes non disponibles pour cet anime');
+      
+      // Générer des épisodes de fallback uniquement si c'est la première page
+      if (page === 1) {
+        const fallbackEpisodes: KitsuEpisode[] = [];
+        for (let i = 1; i <= 12; i++) {
+          fallbackEpisodes.push({
+            id: `fallback-${animeId}-ep-${i}`,
+            type: 'episode',
+            attributes: {
+              canonicalTitle: `Episode ${i}`,
+              titles: { en: `Episode ${i}` },
+              synopsis: `Synopsis de l'épisode ${i}`,
+              number: i,
+              length: 24,
+              airdate: new Date(Date.now() - (12 - i) * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+              thumbnail: {}
+            },
+            relationships: {}
+          });
+        }
+        setEpisodes(fallbackEpisodes);
+        setHasMore(false);
+        setTotal(12);
+      }
     } finally {
       setEstEnChargement(false);
+      setEstEnChargementPlus(false);
     }
   };
 
+  const chargerEpisodesSuivants = async () => {
+    if (hasMore && !estEnChargementPlus) {
+      await chargerEpisodes(pageActuelle + 1, true);
+    }
+  };
+
+  const rechargerEpisodes = async () => {
+    setPageActuelle(1);
+    await chargerEpisodes(1, false);
+  };
+
   useEffect(() => {
-    chargerEpisodes();
+    if (animeId) {
+      chargerEpisodes(1, false);
+    }
   }, [animeId]);
 
-  return { episodes, estEnChargement, erreur, recharger: chargerEpisodes };
+  return { 
+    episodes, 
+    estEnChargement, 
+    estEnChargementPlus,
+    erreur, 
+    hasMore,
+    total,
+    pageActuelle,
+    chargerEpisodesSuivants,
+    recharger: rechargerEpisodes 
+  };
 }
 
-// Hook pour récupérer les détails d'un épisode
 export function useDetailsEpisode(episodeId: string) {
   const [episode, setEpisode] = useState<KitsuEpisode | null>(null);
   const [estEnChargement, setEstEnChargement] = useState(true);

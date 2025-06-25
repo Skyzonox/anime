@@ -1,9 +1,8 @@
-// components/EpisodeCard.tsx
+// components/EpisodeCard.tsx - Version corrigée
 import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
 import { Image, Text, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
-import { KitsuEpisode, getImageUrl } from '../services/apiService';
+import { KitsuEpisode, getBestTitle, getImageUrl } from '../services/apiService';
 
 interface EpisodeCardProps {
   episode: KitsuEpisode;
@@ -24,8 +23,8 @@ export default function EpisodeCard({
 }: EpisodeCardProps) {
   
   const numeroEpisode = episode.attributes.number.toString().padStart(2, '0');
-  const titre = episode.attributes.canonicalTitle || `Épisode ${episode.attributes.number}`;
-  const imageUrl = getImageUrl(episode.attributes.thumbnail, 'small');
+  const titre = getBestTitle(episode.attributes.titles, episode.attributes.canonicalTitle);
+  const imageUrl = getImageUrl(episode.attributes.thumbnail, 'small', titre);
   const synopsis = episode.attributes.synopsis ? 
     (episode.attributes.synopsis.length > 80 ? 
       episode.attributes.synopsis.substring(0, 80) + '...' : 
@@ -39,25 +38,17 @@ export default function EpisodeCard({
 
   return (
     <TouchableOpacity 
-      style={tw`bg-white rounded-lg shadow-sm mb-3 mx-2 ${isWatched ? 'bg-green-50' : ''}`}
+      style={tw`bg-white rounded-lg shadow-sm mb-3 mx-2 border ${isWatched ? 'border-green-200 bg-green-50' : 'border-gray-200'}`}
       onPress={onPress}
       activeOpacity={0.7}
     >
       <View style={tw`flex-row`}>
-        <View style={tw`w-20 h-28 bg-gray-200 rounded-l-lg justify-center items-center relative`}>
-          {episode.attributes.thumbnail ? (
-            <Image
-              source={{ uri: imageUrl }}
-              style={tw`w-full h-full rounded-l-lg`}
-              resizeMode="cover"
-            />
-          ) : (
-            <View style={tw`w-full h-full bg-gray-300 rounded-l-lg justify-center items-center`}>
-              <Text style={tw`text-gray-600 font-bold text-lg`}>
-                {numeroEpisode}
-              </Text>
-            </View>
-          )}
+        <View style={tw`w-20 h-28 relative`}>
+          <Image
+            source={{ uri: imageUrl }}
+            style={tw`w-full h-full rounded-l-lg`}
+            resizeMode="cover"
+          />
           
           {isWatched && (
             <View style={tw`absolute top-1 right-1 bg-green-500 rounded-full p-1`}>
@@ -69,7 +60,7 @@ export default function EpisodeCard({
         <View style={tw`flex-1 p-3`}>
           <View style={tw`flex-row items-center mb-1`}>
             <Text style={tw`text-blue-600 font-bold text-sm mr-2`}>
-              Ép. {episode.attributes.number}
+              Ep. {episode.attributes.number}
             </Text>
             <Text style={tw`text-gray-800 font-medium flex-1`} numberOfLines={1}>
               {titre}

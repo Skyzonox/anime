@@ -1,4 +1,4 @@
-// app/(tabs)/index.tsx
+// app/(tabs)/index.tsx - Version corrigée
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -66,11 +66,12 @@ export default function NouveautesScreen() {
         return;
       }
 
+      const title = getBestTitle(anime.attributes.titles, anime.attributes.canonicalTitle);
       const success = await addAnimeToCollection({
         kitsuId: anime.id,
-        title: getBestTitle(anime.attributes.titles, anime.attributes.canonicalTitle),
+        title: title,
         episodeCount: anime.attributes.episodeCount || 0,
-        posterImage: getImageUrl(anime.attributes.posterImage, 'large'),
+        posterImage: getImageUrl(anime.attributes.posterImage, 'large', title),
         synopsis: anime.attributes.synopsis || '',
         averageRating: anime.attributes.averageRating || 0,
         startDate: anime.attributes.startDate || '',
@@ -161,7 +162,7 @@ interface AnimeCardProps {
 
 function AnimeCard({ anime, onPress, onAddToCollection }: AnimeCardProps) {
   const title = getBestTitle(anime.attributes.titles, anime.attributes.canonicalTitle);
-  const posterUrl = getImageUrl(anime.attributes.posterImage, 'medium');
+  const posterUrl = getImageUrl(anime.attributes.posterImage, 'medium', title);
 
   return (
     <TouchableOpacity

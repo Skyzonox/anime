@@ -1,29 +1,28 @@
-// hooks/useDatabase.ts - Refactorisé pour utiliser Drizzle ORM
-import { desc, eq } from 'drizzle-orm';
+// hooks/useDatabase.ts - Correction du problème de chargement en boucle
+import { and, desc, eq } from 'drizzle-orm';
 import { useEffect, useState } from 'react';
 import { db } from '../db/index';
 import { collectionAnimes, episodesVus, listeARegarder } from '../db/schema';
 
-// Types pour la base de données
 export interface CollectionAnime {
   id: string;
-  kitsuId?: string;
+  kitsuId: string;
   title: string;
-  titre: string; // Alias pour correspondre à votre code
+  titre: string;
   episodeCount: number;
-  nombreEpisodesTotal: number; // Alias pour correspondre à votre code
+  nombreEpisodesTotal: number;
   watchedEpisodes: number;
-  nombreEpisodesVus: number; // Alias pour correspondre à votre code
+  nombreEpisodesVus: number;
   status: 'watching' | 'completed' | 'plan_to_watch' | 'dropped';
-  statut: 'watching' | 'completed' | 'plan_to_watch' | 'dropped'; // Alias
+  statut: 'watching' | 'completed' | 'plan_to_watch' | 'dropped';
   posterImage: string;
-  imageUrl: string; // Alias pour posterImage
+  imageUrl: string;
   synopsis: string;
   averageRating: number;
-  noteApi: number; // Alias pour averageRating
+  noteApi: number;
   startDate: string;
   addedAt: string;
-  dateAjout: string; // Alias pour addedAt
+  dateAjout: string;
   titreOriginal?: string;
 }
 
@@ -31,20 +30,18 @@ export interface WatchedEpisode {
   id: number;
   animeId: string;
   episodeNumber: number;
-  numeroEpisode: number; // Alias
+  numeroEpisode: number;
   episodeTitle?: string;
-  titreEpisode?: string; // Alias
+  titreEpisode?: string;
   watchedAt: string;
-  dateVu: string; // Alias
+  dateVu: string;
 }
 
-// Hook pour gérer les animes de la collection
 export const useCollectionAnimes = () => {
   const [animes, setAnimes] = useState<CollectionAnime[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Charger tous les animes de la collection
   const loadCollectionAnimes = async () => {
     try {
       setLoading(true);
@@ -52,16 +49,15 @@ export const useCollectionAnimes = () => {
       
       const result = await db.select().from(collectionAnimes).orderBy(desc(collectionAnimes.dateAjout));
       
-      // Transformer les données pour correspondre à l'interface
       const animesAvecAlias = result.map((anime): CollectionAnime => ({
         id: anime.id,
-        kitsuId: anime.id, // Utiliser l'ID comme kitsuId
+        kitsuId: anime.id,
         title: anime.titre,
         titre: anime.titre,
         episodeCount: anime.nombreEpisodesTotal || 0,
         nombreEpisodesTotal: anime.nombreEpisodesTotal || 0,
-        watchedEpisodes: 0, // Sera calculé séparément
-        nombreEpisodesVus: 0, // Sera calculé séparément
+        watchedEpisodes: 0,
+        nombreEpisodesVus: 0,
         status: 'plan_to_watch',
         statut: 'plan_to_watch',
         posterImage: anime.imageUrl || '',
@@ -75,7 +71,6 @@ export const useCollectionAnimes = () => {
         titreOriginal: anime.titreOriginal || undefined
       }));
 
-      // Calculer le nombre d'épisodes vus pour chaque anime
       for (const anime of animesAvecAlias) {
         const episodesVusCount = await db
           .select()
@@ -95,7 +90,6 @@ export const useCollectionAnimes = () => {
     }
   };
 
-  // Ajouter un anime à la collection
   const addAnimeToCollection = async (anime: {
     kitsuId: string;
     title: string;
@@ -107,15 +101,26 @@ export const useCollectionAnimes = () => {
     startDate: string;
   }) => {
     try {
-      const id = `anime_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const now = new Date().toISOString();
       
+      // CORRECTION : Vérifier si l'anime existe déjà avant d'insérer
+      const existingAnime = await db
+        .select()
+        .from(collectionAnimes)
+        .where(eq(collectionAnimes.id, anime.kitsuId))
+        .limit(1);
+      
+      if (existingAnime.length > 0) {
+        console.log('Anime déjà dans la collection');
+        return false;
+      }
+      
       await db.insert(collectionAnimes).values({
-        id: id,
+        id: anime.kitsuId,
         titre: anime.title,
         titreOriginal: anime.titleOriginal || null,
         synopsis: anime.synopsis,
-        imageUrl: anime.posterImage,
+        imageUrl: anime.posterImage, // CORRECTION : Bien stocker l'URL de l'image
         noteApi: anime.averageRating,
         statut: 'plan_to_watch',
         nombreEpisodesTotal: anime.episodeCount,
@@ -131,7 +136,6 @@ export const useCollectionAnimes = () => {
     }
   };
 
-  // Ajouter un anime à la collection (version simplifiée)
   const ajouterAnime = async (anime: any) => {
     return await addAnimeToCollection({
       kitsuId: anime.id,
@@ -144,12 +148,27 @@ export const useCollectionAnimes = () => {
     });
   };
 
-  // Marquer un épisode comme vu
   const markEpisodeAsWatched = async (animeId: string, episodeNumber: number, episodeTitle?: string) => {
     try {
       const now = new Date().toISOString();
       
-      // Ajouter l'épisode aux vus (ou le remplacer)
+      // CORRECTION : Vérifier si l'épisode est déjà marqué comme vu
+      const existingEpisode = await db
+        .select()
+        .from(episodesVus)
+        .where(
+          and(
+            eq(episodesVus.animeId, animeId),
+            eq(episodesVus.numeroEpisode, episodeNumber)
+          )
+        )
+        .limit(1);
+      
+      if (existingEpisode.length > 0) {
+        console.log('Episode déjà marqué comme vu');
+        return true; // Retourner true car l'épisode est effectivement "vu"
+      }
+      
       await db.insert(episodesVus).values({
         animeId: animeId,
         numeroEpisode: episodeNumber,
@@ -158,12 +177,11 @@ export const useCollectionAnimes = () => {
         notePersonnelle: null
       });
 
-      // Mettre à jour la date de modification de l'anime
       await db.update(collectionAnimes)
         .set({ dateModification: now })
         .where(eq(collectionAnimes.id, animeId));
 
-      await loadCollectionAnimes();
+      // CORRECTION : Ne pas recharger toute la collection, juste notifier le changement
       return true;
     } catch (err) {
       console.error('Erreur markEpisodeAsWatched:', err);
@@ -171,13 +189,9 @@ export const useCollectionAnimes = () => {
     }
   };
 
-  // Supprimer un anime de la collection
   const removeAnimeFromCollection = async (animeId: string) => {
     try {
-      // Supprimer tous les épisodes vus associés
       await db.delete(episodesVus).where(eq(episodesVus.animeId, animeId));
-      
-      // Supprimer l'anime de la collection
       await db.delete(collectionAnimes).where(eq(collectionAnimes.id, animeId));
       
       await loadCollectionAnimes();
@@ -188,10 +202,8 @@ export const useCollectionAnimes = () => {
     }
   };
 
-  // Vérifier si un anime est dans la collection
   const isAnimeInCollection = async (kitsuId: string): Promise<boolean> => {
     try {
-      // Chercher par titre ou ID (car on stocke l'ID Kitsu comme ID principal)
       const result = await db
         .select()
         .from(collectionAnimes)
@@ -205,12 +217,10 @@ export const useCollectionAnimes = () => {
     }
   };
 
-  // Vérifier si un anime est dans la collection (version synchrone pour compatibilité)
   const verifierSiDansCollection = (kitsuId: string): boolean => {
-    return animes.some(anime => anime.id === kitsuId || anime.kitsuId === kitsuId);
+    return animes.some(anime => anime.id === kitsuId);
   };
 
-  // Charger les données au démarrage
   useEffect(() => {
     loadCollectionAnimes();
   }, []);
@@ -219,22 +229,21 @@ export const useCollectionAnimes = () => {
     animes,
     loading,
     error,
-    collection: animes, // Alias pour correspondre à votre code
-    estEnChargement: loading, // Alias pour correspondre à votre code
-    erreur: error, // Alias pour correspondre à votre code
+    collection: animes,
+    estEnChargement: loading,
+    erreur: error,
     addAnimeToCollection,
-    ajouterAnime, // Alias pour correspondre à votre code
+    ajouterAnime,
     markEpisodeAsWatched,
     removeAnimeFromCollection,
-    supprimerAnime: removeAnimeFromCollection, // Alias pour correspondre à votre code
+    supprimerAnime: removeAnimeFromCollection,
     isAnimeInCollection,
-    verifierSiDansCollection, // Version synchrone
+    verifierSiDansCollection,
     refreshCollection: loadCollectionAnimes,
-    recharger: loadCollectionAnimes // Alias pour correspondre à votre code
+    recharger: loadCollectionAnimes
   };
 };
 
-// Hook pour la liste à regarder
 export const useListeARegarder = () => {
   const [liste, setListe] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -288,7 +297,6 @@ export const useListeARegarder = () => {
   };
 };
 
-// Hook pour les épisodes vus d'un anime spécifique
 export const useEpisodesVus = (animeId: string) => {
   const [episodesVusData, setEpisodesVusData] = useState<WatchedEpisode[]>([]);
 
@@ -302,7 +310,6 @@ export const useEpisodesVus = (animeId: string) => {
         .where(eq(episodesVus.animeId, animeId))
         .orderBy(desc(episodesVus.dateVu));
       
-      // Transformer les données pour correspondre à l'interface
       const episodesAvecAlias = result.map((episode): WatchedEpisode => ({
         id: episode.id!,
         animeId: episode.animeId,
@@ -330,6 +337,23 @@ export const useEpisodesVus = (animeId: string) => {
     try {
       const now = new Date().toISOString();
       
+      // CORRECTION : Vérifier si l'épisode est déjà marqué comme vu
+      const existingEpisode = await db
+        .select()
+        .from(episodesVus)
+        .where(
+          and(
+            eq(episodesVus.animeId, animeId),
+            eq(episodesVus.numeroEpisode, numeroEpisode)
+          )
+        )
+        .limit(1);
+      
+      if (existingEpisode.length > 0) {
+        console.log('Episode déjà marqué comme vu');
+        return true;
+      }
+      
       await db.insert(episodesVus).values({
         animeId: animeId,
         numeroEpisode: numeroEpisode,
@@ -338,11 +362,11 @@ export const useEpisodesVus = (animeId: string) => {
         notePersonnelle: null
       });
 
-      // Mettre à jour la date de modification dans la collection
       await db.update(collectionAnimes)
         .set({ dateModification: now })
         .where(eq(collectionAnimes.id, animeId));
 
+      // CORRECTION : Recharger seulement les épisodes vus de cet anime
       await loadEpisodesVus();
       return true;
     } catch (err) {
@@ -365,7 +389,6 @@ export const useEpisodesVus = (animeId: string) => {
   };
 };
 
-// Hook pour les épisodes vus (version alternative pour compatibilité)
 export const useWatchedEpisodes = (animeId: string) => {
   const { episodesVus, verifierSiVu, marquerCommeVu, recharger } = useEpisodesVus(animeId);
   
@@ -379,7 +402,6 @@ export const useWatchedEpisodes = (animeId: string) => {
   };
 };
 
-// Hook pour la progression d'un anime spécifique
 export const useProgressionAnime = (animeId: string, totalEpisodesFromCollection?: number) => {
   const [episodesVusCount, setEpisodesVusCount] = useState(0);
   const [episodesTotal, setEpisodesTotal] = useState(0);
@@ -393,7 +415,6 @@ export const useProgressionAnime = (animeId: string, totalEpisodesFromCollection
     try {
       setLoading(true);
       
-      // Récupérer les infos de l'anime dans la collection
       const animeResult = await db
         .select()
         .from(collectionAnimes)
@@ -405,7 +426,6 @@ export const useProgressionAnime = (animeId: string, totalEpisodesFromCollection
         episodesTotalValue = animeResult[0].nombreEpisodesTotal || totalEpisodesFromCollection || 0;
       }
 
-      // Compter les épisodes vus
       const episodesVusResult = await db
         .select()
         .from(episodesVus)

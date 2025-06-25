@@ -1,4 +1,4 @@
-// services/apiService.ts - Version avec uniquement l'API Kitsu
+// services/apiService.ts - Version corrigée sans emojis
 export interface KitsuAnime {
   id: string;
   type: string;
@@ -72,42 +72,49 @@ export interface KitsuCategory {
   };
 }
 
-// URL de l'API Kitsu
 const KITSU_BASE_URL = 'https://kitsu.io/api/edge';
 
-// Fonction utilitaire pour créer un timeout compatible React Native
-const createTimeout = (ms: number): { promise: Promise<never>; controller: AbortController } => {
-  const controller = new AbortController();
-  const promise = new Promise<never>((_, reject) => {
-    const timeout = setTimeout(() => {
-      controller.abort();
-      reject(new Error('Request timeout'));
-    }, ms);
-    
-    controller.signal.addEventListener('abort', () => {
-      clearTimeout(timeout);
-    });
-  });
+// Fonction pour obtenir une image par défaut basée sur le titre
+const getDefaultImage = (title: string = '', size: string = 'medium'): string => {
+  const colors = ['4F46E5', '7C3AED', 'DB2777', 'DC2626', 'EA580C', '16A34A', '0891B2'];
+  const colorIndex = title.length % colors.length;
+  const color = colors[colorIndex];
   
-  return { promise, controller };
+  const dimensions = {
+    tiny: '110x156',
+    small: '284x402', 
+    medium: '390x554',
+    large: '550x780',
+    original: '550x780'
+  };
+  
+  const dim = dimensions[size as keyof typeof dimensions] || dimensions.medium;
+  const encodedTitle = encodeURIComponent(title.substring(0, 20));
+  
+  return `https://via.placeholder.com/${dim}/${color}/FFFFFF?text=${encodedTitle}`;
 };
 
 // Fonction utilitaire pour récupérer l'URL d'une image
 export const getImageUrl = (
   imageObj?: { tiny?: string; small?: string; medium?: string; large?: string; original?: string },
-  size: 'tiny' | 'small' | 'medium' | 'large' | 'original' = 'medium'
+  size: 'tiny' | 'small' | 'medium' | 'large' | 'original' = 'medium',
+  fallbackTitle: string = ''
 ): string => {
-  if (!imageObj) {
-    return 'https://picsum.photos/300/400?random=1';
-  }
-
-  const kitsuUrl = imageObj[size] || imageObj.medium || imageObj.large || imageObj.small || imageObj.original;
-  
-  if (kitsuUrl && kitsuUrl.includes('kitsu.io')) {
-    return kitsuUrl;
+  // Essayer d'abord l'image de la taille demandée
+  if (imageObj && imageObj[size]) {
+    return imageObj[size]!;
   }
   
-  return 'https://picsum.photos/300/400?random=2';
+  // Essayer les autres tailles
+  if (imageObj) {
+    const alternatives = [imageObj.medium, imageObj.large, imageObj.small, imageObj.original, imageObj.tiny];
+    for (const alt of alternatives) {
+      if (alt) return alt;
+    }
+  }
+  
+  // Retourner une image par défaut
+  return getDefaultImage(fallbackTitle, size);
 };
 
 // Fonction utilitaire pour récupérer le meilleur titre
@@ -127,7 +134,7 @@ export const getBestTitle = (
          'Titre non disponible';
 };
 
-// Données de fallback avec images qui fonctionnent vraiment
+// Données de fallback
 const getFallbackAnimes = (): KitsuAnime[] => {
   return [
     {
@@ -142,13 +149,7 @@ const getFallbackAnimes = (): KitsuAnime[] => {
         status: 'finished',
         subtype: 'TV',
         startDate: '2013-04-07',
-        posterImage: {
-          tiny: 'https://picsum.photos/150/200?random=1',
-          small: 'https://picsum.photos/200/280?random=1',
-          medium: 'https://picsum.photos/300/400?random=1',
-          large: 'https://picsum.photos/400/560?random=1',
-          original: 'https://picsum.photos/500/700?random=1'
-        }
+        posterImage: {}
       },
       relationships: {}
     },
@@ -164,108 +165,29 @@ const getFallbackAnimes = (): KitsuAnime[] => {
         status: 'current',
         subtype: 'TV',
         startDate: '1999-10-20',
-        posterImage: {
-          tiny: 'https://picsum.photos/150/200?random=2',
-          small: 'https://picsum.photos/200/280?random=2',
-          medium: 'https://picsum.photos/300/400?random=2',
-          large: 'https://picsum.photos/400/560?random=2',
-          original: 'https://picsum.photos/500/700?random=2'
-        }
-      },
-      relationships: {}
-    },
-    {
-      id: 'fallback-3',
-      type: 'anime',
-      attributes: {
-        canonicalTitle: 'My Hero Academia',
-        titles: { en: 'My Hero Academia', en_jp: 'Boku no Hero Academia', ja_jp: '僕のヒーローアカデミア' },
-        synopsis: 'In a world where most people have superpowers called Quirks, a boy without them dreams of becoming a hero.',
-        averageRating: 82,
-        episodeCount: 138,
-        status: 'current',
-        subtype: 'TV',
-        startDate: '2016-04-03',
-        posterImage: {
-          tiny: 'https://picsum.photos/150/200?random=3',
-          small: 'https://picsum.photos/200/280?random=3',
-          medium: 'https://picsum.photos/300/400?random=3',
-          large: 'https://picsum.photos/400/560?random=3',
-          original: 'https://picsum.photos/500/700?random=3'
-        }
-      },
-      relationships: {}
-    },
-    {
-      id: 'fallback-4',
-      type: 'anime',
-      attributes: {
-        canonicalTitle: 'Demon Slayer: Kimetsu no Yaiba',
-        titles: { en: 'Demon Slayer', en_jp: 'Kimetsu no Yaiba', ja_jp: '鬼滅の刃' },
-        synopsis: 'A young boy becomes a demon slayer to save his sister who has been turned into a demon.',
-        averageRating: 88,
-        episodeCount: 26,
-        status: 'finished',
-        subtype: 'TV',
-        startDate: '2019-04-06',
-        posterImage: {
-          tiny: 'https://picsum.photos/150/200?random=4',
-          small: 'https://picsum.photos/200/280?random=4',
-          medium: 'https://picsum.photos/300/400?random=4',
-          large: 'https://picsum.photos/400/560?random=4',
-          original: 'https://picsum.photos/500/700?random=4'
-        }
-      },
-      relationships: {}
-    },
-    {
-      id: 'fallback-5',
-      type: 'anime',
-      attributes: {
-        canonicalTitle: 'Jujutsu Kaisen',
-        titles: { en: 'Jujutsu Kaisen', en_jp: 'Jujutsu Kaisen', ja_jp: '呪術廻戦' },
-        synopsis: 'Students fight cursed spirits in this supernatural action series about sorcery and dark magic.',
-        averageRating: 86,
-        episodeCount: 24,
-        status: 'upcoming',
-        subtype: 'TV',
-        startDate: '2024-07-01',
-        posterImage: {
-          tiny: 'https://picsum.photos/150/200?random=5',
-          small: 'https://picsum.photos/200/280?random=5',
-          medium: 'https://picsum.photos/300/400?random=5',
-          large: 'https://picsum.photos/400/560?random=5',
-          original: 'https://picsum.photos/500/700?random=5'
-        }
-      },
-      relationships: {}
-    },
-    {
-      id: 'fallback-6',
-      type: 'anime',
-      attributes: {
-        canonicalTitle: 'Naruto',
-        titles: { en: 'Naruto', en_jp: 'Naruto', ja_jp: 'ナルト' },
-        synopsis: 'A young ninja with dreams of becoming the strongest ninja and leader of his village.',
-        averageRating: 84,
-        episodeCount: 220,
-        status: 'finished',
-        subtype: 'TV',
-        startDate: '2002-10-03',
-        posterImage: {
-          tiny: 'https://picsum.photos/150/200?random=6',
-          small: 'https://picsum.photos/200/280?random=6',
-          medium: 'https://picsum.photos/300/400?random=6',
-          large: 'https://picsum.photos/400/560?random=6',
-          original: 'https://picsum.photos/500/700?random=6'
-        }
+        posterImage: {}
       },
       relationships: {}
     }
   ];
 };
 
-// Fonction pour fetch avec Kitsu
+const createTimeout = (ms: number): { promise: Promise<never>; controller: AbortController } => {
+  const controller = new AbortController();
+  const promise = new Promise<never>((_, reject) => {
+    const timeout = setTimeout(() => {
+      controller.abort();
+      reject(new Error('Request timeout'));
+    }, ms);
+    
+    controller.signal.addEventListener('abort', () => {
+      clearTimeout(timeout);
+    });
+  });
+  
+  return { promise, controller };
+};
+
 const fetchFromKitsu = async (endpoint: string): Promise<any> => {
   try {
     const { promise: timeoutPromise, controller } = createTimeout(10000);
@@ -291,82 +213,76 @@ const fetchFromKitsu = async (endpoint: string): Promise<any> => {
   }
 };
 
-// 1. Animes actuellement en cours de diffusion
 export const fetchCurrentlyAiringAnime = async (): Promise<KitsuAnime[]> => {
   try {
-    console.log('🔍 Récupération des animes en cours depuis Kitsu...');
+    console.log('Récupération des animes en cours depuis Kitsu...');
     
     const data = await fetchFromKitsu('/anime?filter[status]=current&sort=-startDate&page[limit]=20&include=categories');
     const animes = data.data || [];
     
-    console.log(`✅ ${animes.length} animes en cours récupérés depuis Kitsu`);
+    console.log(`${animes.length} animes en cours récupérés depuis Kitsu`);
     return animes;
   } catch (error) {
-    console.error('❌ Erreur fetchCurrentlyAiringAnime:', error);
-    console.log('🔄 Utilisation des données de fallback');
+    console.error('Erreur fetchCurrentlyAiringAnime:', error);
+    console.log('Utilisation des données de fallback');
     return getFallbackAnimes().filter(anime => anime.attributes.status === 'current');
   }
 };
 
-// 2. Animes à venir
 export const fetchUpcomingAnime = async (): Promise<KitsuAnime[]> => {
   try {
-    console.log('🔍 Récupération des animes à venir depuis Kitsu...');
+    console.log('Récupération des animes à venir depuis Kitsu...');
     
     const data = await fetchFromKitsu('/anime?filter[status]=upcoming&sort=startDate&page[limit]=20&include=categories');
     const animes = data.data || [];
     
-    console.log(`✅ ${animes.length} animes à venir récupérés depuis Kitsu`);
+    console.log(`${animes.length} animes à venir récupérés depuis Kitsu`);
     return animes;
   } catch (error) {
-    console.error('❌ Erreur fetchUpcomingAnime:', error);
-    console.log('🔄 Utilisation des données de fallback');
+    console.error('Erreur fetchUpcomingAnime:', error);
+    console.log('Utilisation des données de fallback');
     return getFallbackAnimes().filter(anime => anime.attributes.status === 'upcoming');
   }
 };
 
-// 3. Recherche d'animes par titre
 export const searchAnime = async (query: string): Promise<KitsuAnime[]> => {
   try {
     if (!query.trim()) {
       return [];
     }
 
-    console.log(`🔍 Recherche: "${query}" sur Kitsu`);
+    console.log(`Recherche: "${query}" sur Kitsu`);
     
     const encodedQuery = encodeURIComponent(query);
     const data = await fetchFromKitsu(`/anime?filter[text]=${encodedQuery}&page[limit]=20`);
     const animes = data.data || [];
     
-    console.log(`✅ ${animes.length} résultats trouvés avec Kitsu`);
+    console.log(`${animes.length} résultats trouvés avec Kitsu`);
     return animes;
   } catch (error) {
-    console.error('❌ Erreur searchAnime:', error);
+    console.error('Erreur searchAnime:', error);
     
-    // Fallback: recherche dans les données locales
     const fallbackAnimes = getFallbackAnimes();
     const results = fallbackAnimes.filter(anime => 
       anime.attributes.canonicalTitle.toLowerCase().includes(query.toLowerCase()) ||
       anime.attributes.titles.en?.toLowerCase().includes(query.toLowerCase())
     );
     
-    console.log(`🔄 ${results.length} résultats de fallback trouvés`);
+    console.log(`${results.length} résultats de fallback trouvés`);
     return results;
   }
 };
 
-// 4. Détails d'un anime par son ID
 export const fetchAnimeById = async (id: string): Promise<KitsuAnime | null> => {
   try {
     if (!id) return null;
 
-    console.log(`🔍 Récupération anime ID: ${id} depuis Kitsu`);
+    console.log(`Récupération anime ID: ${id} depuis Kitsu`);
     
-    // Si c'est un ID de fallback, retourner directement
     if (id.startsWith('fallback-')) {
       const fallbackAnimes = getFallbackAnimes();
       const anime = fallbackAnimes.find(anime => anime.id === id) || null;
-      console.log(`✅ Anime fallback récupéré: ${anime?.attributes.canonicalTitle}`);
+      console.log(`Anime fallback récupéré: ${anime?.attributes.canonicalTitle}`);
       return anime;
     }
     
@@ -374,112 +290,117 @@ export const fetchAnimeById = async (id: string): Promise<KitsuAnime | null> => 
     const anime = data.data || null;
     
     if (anime) {
-      console.log(`✅ Anime récupéré depuis Kitsu: ${anime.attributes.canonicalTitle}`);
+      console.log(`Anime récupéré depuis Kitsu: ${anime.attributes.canonicalTitle}`);
     }
     
     return anime;
   } catch (error) {
-    console.error('❌ Erreur fetchAnimeById:', error);
+    console.error('Erreur fetchAnimeById:', error);
     return null;
   }
 };
 
-// 5. Détails d'un épisode par son ID
 export const fetchEpisodeById = async (id: string): Promise<KitsuEpisode | null> => {
   try {
     if (!id) return null;
 
-    console.log(`🔍 Récupération épisode ID: ${id} depuis Kitsu`);
+    console.log(`Récupération épisode ID: ${id} depuis Kitsu`);
     
     const data = await fetchFromKitsu(`/episodes/${id}?include=media`);
     const episode = data.data || null;
     
     if (episode) {
-      console.log(`✅ Épisode récupéré depuis Kitsu: ${episode.attributes.canonicalTitle}`);
+      console.log(`Episode récupéré depuis Kitsu: ${episode.attributes.canonicalTitle}`);
       return episode;
     }
     
-    // Fallback si pas trouvé
     return {
       id,
       type: 'episode',
       attributes: {
-        canonicalTitle: `Épisode ${id}`,
+        canonicalTitle: `Episode ${id}`,
         titles: { en: `Episode ${id}` },
         synopsis: 'Synopsis de l\'épisode non disponible',
         number: parseInt(id.split('-').pop() || '1') || 1,
         length: 24,
         airdate: new Date().toISOString().split('T')[0],
-        thumbnail: {
-          medium: `https://picsum.photos/320/180?random=${id.slice(-3)}`
-        }
+        thumbnail: {}
       },
       relationships: {}
     };
   } catch (error) {
-    console.error('❌ Erreur fetchEpisodeById:', error);
+    console.error('Erreur fetchEpisodeById:', error);
     return null;
   }
 };
 
-// 6. Épisodes d'un anime
-export const fetchEpisodesByAnimeId = async (animeId: string): Promise<KitsuEpisode[]> => {
+// Fonction modifiée pour supporter la pagination
+export const fetchEpisodesByAnimeId = async (
+  animeId: string, 
+  page: number = 1, 
+  limit: number = 10
+): Promise<{episodes: KitsuEpisode[], hasMore: boolean, total: number}> => {
   try {
-    if (!animeId) return [];
+    if (!animeId) return { episodes: [], hasMore: false, total: 0 };
 
-    console.log(`🔍 Récupération épisodes pour anime ${animeId} depuis Kitsu`);
+    console.log(`Récupération épisodes pour anime ${animeId}, page ${page}, limite ${limit}`);
     
-    const data = await fetchFromKitsu(`/anime/${animeId}/episodes?sort=number&page[limit]=20`);
+    const offset = (page - 1) * limit;
+    const data = await fetchFromKitsu(`/anime/${animeId}/episodes?sort=number&page[limit]=${limit}&page[offset]=${offset}`);
     const episodes = data.data || [];
     
+    // Estimer s'il y a plus d'épisodes
+    const hasMore = episodes.length === limit;
+    const total = episodes.length > 0 ? (offset + episodes.length + (hasMore ? 1 : 0)) : 0;
+    
     if (episodes.length > 0) {
-      console.log(`✅ ${episodes.length} épisodes récupérés depuis Kitsu`);
-      return episodes;
+      console.log(`${episodes.length} épisodes récupérés depuis Kitsu (page ${page})`);
+      return { episodes, hasMore, total };
     }
     
     // Fallback: générer des épisodes de test
     const fallbackEpisodes: KitsuEpisode[] = [];
-    for (let i = 1; i <= 12; i++) {
+    const startEpisode = offset + 1;
+    const endEpisode = Math.min(startEpisode + limit - 1, 12); // Max 12 épisodes de test
+    
+    for (let i = startEpisode; i <= endEpisode; i++) {
       fallbackEpisodes.push({
         id: `${animeId}-ep-${i}`,
         type: 'episode',
         attributes: {
-          canonicalTitle: `Épisode ${i}`,
+          canonicalTitle: `Episode ${i}`,
           titles: { en: `Episode ${i}` },
           synopsis: `Synopsis de l'épisode ${i} - Une aventure passionnante continue...`,
           number: i,
           length: 24,
           airdate: new Date(Date.now() - (12 - i) * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          thumbnail: {
-            medium: `https://picsum.photos/320/180?random=${animeId.slice(-1)}${i}`
-          }
+          thumbnail: {}
         },
         relationships: {}
       });
     }
     
-    console.log(`🔄 ${fallbackEpisodes.length} épisodes de fallback générés`);
-    return fallbackEpisodes;
+    const fallbackHasMore = endEpisode < 12;
+    console.log(`${fallbackEpisodes.length} épisodes de fallback générés`);
+    return { episodes: fallbackEpisodes, hasMore: fallbackHasMore, total: 12 };
   } catch (error) {
-    console.error('❌ Erreur fetchEpisodesByAnimeId:', error);
-    return [];
+    console.error('Erreur fetchEpisodesByAnimeId:', error);
+    return { episodes: [], hasMore: false, total: 0 };
   }
 };
 
-// 7. Catégories d'un anime
 export const fetchAnimeCategories = async (animeId: string): Promise<KitsuCategory[]> => {
   try {
-    console.log(`🔍 Récupération catégories pour anime ${animeId} depuis Kitsu`);
+    console.log(`Récupération catégories pour anime ${animeId} depuis Kitsu`);
     
     const data = await fetchFromKitsu(`/anime/${animeId}/categories`);
     const categories = data.data || [];
     
-    console.log(`✅ ${categories.length} catégories récupérées depuis Kitsu`);
+    console.log(`${categories.length} catégories récupérées depuis Kitsu`);
     return categories;
   } catch (error) {
-    console.error('❌ Erreur fetchAnimeCategories:', error);
+    console.error('Erreur fetchAnimeCategories:', error);
     
-    // Catégories de fallback
     return [
       {
         id: 'action',
@@ -490,71 +411,50 @@ export const fetchAnimeCategories = async (animeId: string): Promise<KitsuCatego
           slug: 'action',
           childCount: 0
         }
-      },
-      {
-        id: 'adventure',
-        type: 'category',
-        attributes: {
-          title: 'Adventure',
-          description: 'Adventure anime',
-          slug: 'adventure',
-          childCount: 0
-        }
       }
     ];
   }
 };
 
-// 8. Toutes les catégories disponibles
 export const fetchAllCategories = async (): Promise<KitsuCategory[]> => {
   try {
-    console.log('🔍 Récupération de toutes les catégories depuis Kitsu');
+    console.log('Récupération de toutes les catégories depuis Kitsu');
     
     const data = await fetchFromKitsu('/categories?page[limit]=40&sort=title');
     const categories = data.data || [];
     
-    console.log(`✅ ${categories.length} catégories récupérées depuis Kitsu`);
+    console.log(`${categories.length} catégories récupérées depuis Kitsu`);
     return categories;
   } catch (error) {
-    console.error('❌ Erreur fetchAllCategories:', error);
+    console.error('Erreur fetchAllCategories:', error);
     
     return [
       { id: 'action', type: 'category', attributes: { title: 'Action', slug: 'action', childCount: 0 } },
       { id: 'adventure', type: 'category', attributes: { title: 'Adventure', slug: 'adventure', childCount: 0 } },
-      { id: 'comedy', type: 'category', attributes: { title: 'Comedy', slug: 'comedy', childCount: 0 } },
-      { id: 'drama', type: 'category', attributes: { title: 'Drama', slug: 'drama', childCount: 0 } },
-      { id: 'fantasy', type: 'category', attributes: { title: 'Fantasy', slug: 'fantasy', childCount: 0 } },
-      { id: 'romance', type: 'category', attributes: { title: 'Romance', slug: 'romance', childCount: 0 } },
-      { id: 'sci-fi', type: 'category', attributes: { title: 'Sci-Fi', slug: 'sci-fi', childCount: 0 } },
-      { id: 'thriller', type: 'category', attributes: { title: 'Thriller', slug: 'thriller', childCount: 0 } }
+      { id: 'comedy', type: 'category', attributes: { title: 'Comedy', slug: 'comedy', childCount: 0 } }
     ];
   }
 };
 
-// 9. Recherche d'animes par catégorie
 export const searchAnimeByCategory = async (categoryId: string): Promise<KitsuAnime[]> => {
   try {
-    console.log(`🔍 Recherche par catégorie: ${categoryId} sur Kitsu`);
+    console.log(`Recherche par catégorie: ${categoryId} sur Kitsu`);
     
     const data = await fetchFromKitsu(`/categories/${categoryId}/anime?page[limit]=20`);
     const animes = data.data || [];
     
-    console.log(`✅ ${animes.length} animes trouvés pour la catégorie ${categoryId}`);
+    console.log(`${animes.length} animes trouvés pour la catégorie ${categoryId}`);
     return animes;
   } catch (error) {
-    console.error('❌ Erreur searchAnimeByCategory:', error);
-    
-    // Retourner quelques animes de fallback
+    console.error('Erreur searchAnimeByCategory:', error);
     return getFallbackAnimes().slice(0, 3);
   }
 };
 
-// Fonction utilitaire pour les nouveautés
 export const fetchLatestAnime = async (): Promise<KitsuAnime[]> => {
   try {
-    console.log('🔍 Récupération des nouveautés depuis Kitsu...');
+    console.log('Récupération des nouveautés depuis Kitsu...');
     
-    // Récupérer à la fois les animes en cours et à venir
     const [currentAnimes, upcomingAnimes] = await Promise.allSettled([
       fetchCurrentlyAiringAnime(),
       fetchUpcomingAnime()
@@ -570,24 +470,22 @@ export const fetchLatestAnime = async (): Promise<KitsuAnime[]> => {
       allAnimes = [...allAnimes, ...upcomingAnimes.value.slice(0, 10)];
     }
 
-    // Si on n'a rien, utiliser les données de fallback
     if (allAnimes.length === 0) {
-      console.log('🔄 Utilisation des données de fallback complètes');
+      console.log('Utilisation des données de fallback complètes');
       allAnimes = getFallbackAnimes();
     }
 
-    console.log(`✅ ${allAnimes.length} nouveautés récupérées`);
+    console.log(`${allAnimes.length} nouveautés récupérées`);
     return allAnimes.slice(0, 20);
   } catch (error) {
-    console.error('❌ Erreur fetchLatestAnime:', error);
+    console.error('Erreur fetchLatestAnime:', error);
     return getFallbackAnimes();
   }
 };
 
-// Fonction pour vérifier la connectivité à l'API Kitsu
 export const checkAPIConnection = async (): Promise<boolean> => {
   try {
-    console.log('🔍 Test de connectivité à Kitsu...');
+    console.log('Test de connectivité à Kitsu...');
     
     const { promise: timeoutPromise, controller } = createTimeout(5000);
     
@@ -599,10 +497,10 @@ export const checkAPIConnection = async (): Promise<boolean> => {
     const response = await Promise.race([fetchPromise, timeoutPromise]);
     const isConnected = response.ok;
     
-    console.log(`🌐 Kitsu API: ${isConnected ? '✅ Connecté' : '❌ Indisponible'}`);
+    console.log(`Kitsu API: ${isConnected ? 'Connecté' : 'Indisponible'}`);
     return isConnected;
   } catch (error) {
-    console.error('❌ Erreur de connectivité Kitsu:', error);
+    console.error('Erreur de connectivité Kitsu:', error);
     return false;
   }
 };
